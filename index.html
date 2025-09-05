@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>NFC Peněženka</title>
+</head>
+<body>
+  <h1>NFC Peněženka</h1>
+  <p>Zůstatek: <span id="balance">?</span> <span id="currency"></span></p>
+  <button id="init">Inicializovat tag</button>
+  <button id="read">Načíst tag</button>
+  <button id="add">Přidat 10</button>
+  <button id="sub">Odebrat 10</button>
+
+  <script>
+    let ndef;
+    let balance = 0;
+    let currency = "CZK";
+
+    function log(msg) {
+      console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
+    }
+
+    function updateDisplay() {
+      document.getElementById("balance").textContent = balance;
+      document.getElementById("currency").textContent = currency;
+    }
+
+    async function initNfc() {
+      if ("NDEFReader" in window) {
+        ndef = new NDEFReader();
+        log("NFC připraveno.");
+      } else {
+        alert("Web NFC není podporováno v tomto prohlížeči.");
+      }
+    }
+
+    async function writeTag() {
+      try {
+        const payload = JSON.stringify({ c: currency, b: balance });
+        const bytes = new TextEncoder().encode(payload); // převod na bajty
+        await ndef.write({
+          records: [
+            {
+              recordType: "mime",
+              mediaType: "application/json",
+              data: bytes
+            }
+          ]
+        });
+        log("Zápis OK: " + payload);
+      } catch (err) {
+        log("Zápis selhal: " + err);
+      }
+    }
+
+    async function initTag() {
+      balance = 250;
+      currency = "CZK";
+      updateDisplay();
+      await writeTag();
+    }
+
+    async function readTag() {
+      try {
+        await ndef.scan();
+        log("Přiložte tag pro čtení...");
+        ndef.onreading = event => {
+          for (const record of event.message.records) {
+            if (record.mediaType === "application/json") {
+              const json = new TextDecoder().decode(record.data);
+              log("Načteno: " + json);
+              try {
+                const obj = JSON.parse(json);
+                currency = obj.c;
+                balance = obj.b;
+                updateDisplay();
+              } catch (e) {
+                log("Chyba JSON: " + e);
+              }
+            }
+          }
+        };
+      } catch (err) {
+        log("Čtení selhalo: " + err);
+      }
+    }
+
+    async function add() {
+      balance += 10;
+      updateDisplay();
+      await writeTag();
+    }
+
+    async function sub() {
+      balance -= 10;
+      updateDisplay();
+      await writeTag();
+    }
+
+    document.getElementById("init").onclick = initTag;
+    document.getElementById("read").onclick = readTag;
+    document.getElementById("add").onclick = add;
+    document.getElementById("sub").onclick = sub;
+
+    initNfc();
+  </script>
+</body>
+</html>
