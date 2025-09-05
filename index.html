@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>NFC Peněženka</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 1.2em;
+      margin: 10px 0 20px;
+    }
+
+    #balance {
+      font-weight: bold;
+      font-size: 1.4em;
+      color: #2c7a2c;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    input[type="number"] {
+      width: 100px;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 1em;
+      text-align: right;
+    }
+
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      font-size: 1em;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    .log {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 400px;
+      background: white;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.9em;
+      color: #444;
+      height: 150px;
+      overflow-y: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+  </style>
+</head>
+<body>
+  <h1>NFC Peněženka</h1>
+  <p>Zůstatek: <span id="balance">?</span> <span id="currency"></span></p>
+
+  <div class="controls">
+    <button id="init">Inicializovat tag</button>
+    <button id="read">Načíst tag</button>
+  </div>
+
+  <div class="controls">
+    <input type="number" id="amount" value="10" step="1">
+    <button id="add">Přidat</button>
+    <button id="sub">Odebrat</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    let ndef = null;
+    let balance = 0;
+    let currency = "CZK";
+
+    function log(msg) {
+      const logDiv = document.getElementById("log");
+      const line = document.createElement("div");
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logDiv.appendChild(line);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(msg);
+    }
+
+    function updateDisplay() {
+      document.getElementById("balance").textContent = balance;
+      document.getElementById("currency").textContent = currency;
+    }
+
+    async function initNfc() {
+      if ("NDEFReader" in window) {
+        ndef = new NDEFReader();
+        log("NFC připraveno.");
+      } else {
+        alert("Web NFC není podporováno v tomto prohlížeči.");
+      }
+    }
+
+    async function writeTag() {
+      if (!ndef) {
+        log("NFC není inicializováno.");
+        return;
+      }
+      try {
+        const payload = JSON.stringify({ c: currency, b: balance });
+        const bytes = new TextEncoder().encode(payload);
+        await ndef.write({
+          records: [{ recordType: "mime", mediaType: "application/json", data: bytes }]
+        });
+        log("Zápis OK: " + payload);
+      } catch (err) {
+        log("Zápis selhal: " + err);
+      }
+    }
+
+    async function initTag() {
+      balance = 250;
+      currency = "CZK";
+      updateDisplay();
+      await writeTag();
+    }
+
+    function parseJsonFromTag(record) {
+      try {
+        const jsonText = new TextDecoder().decode(record.data);
+        if (!jsonText.trim()) return false;
+        log("Načteno: " + jsonText);
+
+        const obj = JSON.parse(jsonText);
+        if (obj.c && typeof obj.b === "number") {
+          currency = obj.c;
+          balance = obj.b;
+          updateDisplay();
+          log("Zůstatek aktualizován na: " + balance + " " + currency);
+          return true;
+        } else {
+          log("JSON neobsahuje správná pole.");
+          return false;
+        }
+      } catch (e) {
+        log("Chyba při parsování JSON: " + e);
+        return false;
+      }
+    }
+
+    async function readTag() {
+      if (!ndef) {
+        log("NFC není inicializováno.");
+        return;
+      }
+      try {
+        await ndef.scan();
+        log("Přiložte tag pro čtení...");
+        ndef.onreading = event => {
+          let found = false;
+          for (const record of event.message.records) {
+            if (record.mediaType === "application/json") {
+              if (parseJsonFromTag(record)) found = true;
+            }
+          }
+          if (!found) {
+            log("Žádná platná data na tagu.");
+          }
+        };
+      } catch (err) {
+        log("Čtení selhalo: " + err);
+      }
+    }
+
+    async function add() {
+      const amount = Number(document.getElementById("amount").value) || 0;
+      balance += amount;
+      updateDisplay();
+      await writeTag();
+    }
+
+    async function sub() {
+      const amount = Number(document.getElementById("amount").value) || 0;
+      balance -= amount;
+      updateDisplay();
+      await writeTag();
+    }
+
+    document.getElementById("init").onclick = initTag;
+    document.getElementById("read").onclick = readTag;
+    document.getElementById("add").onclick = add;
+    document.getElementById("sub").onclick = sub;
+
+    initNfc();
+  </script>
+</body>
+</html>
