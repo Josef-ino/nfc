@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <title>NFC Terminál</title>
+  <title>NFC Terminál V2</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -62,9 +62,7 @@
       border-radius: 8px;
       cursor: pointer;
     }
-    .key:active {
-      background: #06c;
-    }
+    .key:active { background: #06c; }
     #controls {
       display: flex;
       gap: 10px;
@@ -80,9 +78,7 @@
       cursor: pointer;
       width: 130px;
     }
-    button.action:active {
-      background: #06c;
-    }
+    button.action:active { background: #06c; }
     #startNFC {
       background: #0af;
       color: #000;
@@ -94,9 +90,7 @@
       margin-top: 20px;
       cursor: pointer;
     }
-    #startNFC:active {
-      background: #06c;
-    }
+    #startNFC:active { background: #06c; }
   </style>
 </head>
 <body>
@@ -141,21 +135,22 @@
     }
 
     function updateDisplay() {
-      document.getElementById("balance").textContent = balance + " " + currency;
+      document.getElementById("balance").textContent =
+        (balance !== null ? balance : "?") + " " + currency;
     }
 
     async function initNFC() {
       if (!("NDEFReader" in window)) {
-        log("NFC není podporováno.");
+        log("❌ NFC není podporováno v tomto prohlížeči.");
         return;
       }
       ndef = new NDEFReader();
       try {
-        await ndef.scan(); // 🔔 Tady Chrome vyžádá oprávnění
-        log("Přiložte kartu...");
+        await ndef.scan();
+        log("📡 Přiložte kartu...");
         ndef.onreading = event => handleReading(event);
       } catch (err) {
-        log("NFC zamítnuto: " + err);
+        log("⚠️ NFC zamítnuto: " + err);
       }
     }
 
@@ -176,12 +171,12 @@
       }
 
       if (!found) {
-        balance = 20; // default při prázdné kartě
+        balance = 20; // defaultní kredit
         currency = "CZK";
         writeCard(balance, currency);
-        log("Karta inicializována (20 Kč).");
+        log("💳 Karta inicializována (20 Kč).");
       } else {
-        log("Karta načtena.");
+        log("✅ Karta načtena.");
       }
       updateDisplay();
 
@@ -190,14 +185,14 @@
           if (balance >= amount) {
             balance -= amount;
             writeCard(balance, currency);
-            log("Platba " + amount + " Kč proběhla.");
+            log("✅ Platba " + amount + " Kč proběhla.");
           } else {
-            log("Nedostatek prostředků!");
+            log("❌ Nedostatek prostředků!");
           }
         } else if (pendingAction === "topup") {
           balance += amount;
           writeCard(balance, currency);
-          log("Dobito " + amount + " Kč.");
+          log("✅ Dobito " + amount + " Kč.");
         }
         updateDisplay();
         pendingAction = null;
@@ -215,7 +210,7 @@
           ]
         });
       } catch (err) {
-        log("Chyba zápisu: " + err);
+        log("⚠️ Chyba zápisu: " + err);
       }
     }
 
@@ -232,7 +227,7 @@
       }
       pendingAction = "pay";
       amount = val;
-      log("Přiložte kartu k zaplacení " + val + " Kč...");
+      log("💸 Přiložte kartu k zaplacení " + val + " Kč...");
     }
 
     function startTopUp() {
@@ -243,7 +238,7 @@
       }
       pendingAction = "topup";
       amount = val;
-      log("Přiložte kartu k dobití " + val + " Kč...");
+      log("💰 Přiložte kartu k dobití " + val + " Kč...");
     }
 
     // --- Keypad funkce ---
@@ -259,7 +254,6 @@
       input.value = input.value.slice(0, -1);
     }
 
-    // 🔔 NFC se spustí až po kliknutí na tlačítko
     document.getElementById("startNFC").addEventListener("click", initNFC);
   </script>
 </body>
